@@ -17,15 +17,26 @@ app = Client(
     bot_token=BOT_TOKEN,
 )
 
+import httpx
+
+# Async (recommended inside Pyrogram handlers)
+async with httpx.AsyncClient() as client:
+    response = await client.get("https://api.example.com/data")
+    print(response.json())
+
+# Sync (outside of async context)
+response = httpx.get("https://api.example.com/data")
+print(response.json()
+      
 # ── Premium emoji ─────────────────────────────────────────────────────────────
 PREMIUM_EMOJI = "<emoji id='5796253585100509494'>👋</emoji>"
 
 # ── Inline keyboard with 3 buttons ───────────────────────────────────────────
 START_KEYBOARD = InlineKeyboardMarkup(
     [
-        [InlineKeyboardButton("🌐 Website", callback_data="website")],
-        [InlineKeyboardButton("📞 Support", callback_data="support")],
-        [InlineKeyboardButton("ℹ️  About",   callback_data="about")],
+        [InlineKeyboardButton("🌐 Website", callback_data="website", style="success")],
+        [InlineKeyboardButton("📞 Support", callback_data="support", style="primary")],
+        [InlineKeyboardButton("ℹ️  About", callback_data="about", style="danger")],
     ]
 )
 
