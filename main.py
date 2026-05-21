@@ -1,9 +1,9 @@
 import os
 from dotenv import load_dotenv
-from pyrogram import Client, filters
-
-load_dotenv()  # loads variables from .env into os.environ
+from pyrogram import Client, filters, enums
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
+
+load_dotenv()
 
 # Load credentials from environment variables
 API_ID = int(os.environ.get("API_ID", 0))
@@ -17,15 +17,15 @@ app = Client(
     bot_token=BOT_TOKEN,
 )
 
-# ── Premium emoji ID ──────────────────────────────────────────────────────────
+# ── Premium emoji ─────────────────────────────────────────────────────────────
 PREMIUM_EMOJI = "<emoji id='5796253585100509494'>👋</emoji>"
 
-# ── Inline keyboard with 3 buttons ──────────────────────────────────────────
+# ── Inline keyboard with 3 buttons ───────────────────────────────────────────
 START_KEYBOARD = InlineKeyboardMarkup(
     [
-        [InlineKeyboardButton("🌐 Website",  callback_data="website")],
-        [InlineKeyboardButton("📞 Support",  callback_data="support")],
-        [InlineKeyboardButton("ℹ️  About",    callback_data="about")],
+        [InlineKeyboardButton("🌐 Website", callback_data="website")],
+        [InlineKeyboardButton("📞 Support", callback_data="support")],
+        [InlineKeyboardButton("ℹ️  About",   callback_data="about")],
     ]
 )
 
@@ -36,7 +36,7 @@ async def start_handler(client, message):
         f"{PREMIUM_EMOJI} Hello, {message.from_user.mention}!\n\n"
         "Welcome to the bot. Choose an option below:",
         reply_markup=START_KEYBOARD,
-        parse_mode="html",  # required for <emoji> tag to render
+        parse_mode=enums.ParseMode.HTML,
     )
 
 # ── Callback query handlers ───────────────────────────────────────────────────
@@ -45,7 +45,7 @@ async def website_callback(client, callback_query: CallbackQuery):
     await callback_query.answer("Opening website…", show_alert=False)
     await callback_query.message.edit_text(
         "🌐 <b>Website</b>\n\nVisit us at: https://example.com",
-        parse_mode="html",
+        parse_mode=enums.ParseMode.HTML,
         reply_markup=InlineKeyboardMarkup(
             [[InlineKeyboardButton("🔙 Back", callback_data="back")]]
         ),
@@ -56,7 +56,7 @@ async def support_callback(client, callback_query: CallbackQuery):
     await callback_query.answer("Connecting to support…", show_alert=False)
     await callback_query.message.edit_text(
         "📞 <b>Support</b>\n\nContact us at: @support_username",
-        parse_mode="html",
+        parse_mode=enums.ParseMode.HTML,
         reply_markup=InlineKeyboardMarkup(
             [[InlineKeyboardButton("🔙 Back", callback_data="back")]]
         ),
@@ -67,7 +67,7 @@ async def about_callback(client, callback_query: CallbackQuery):
     await callback_query.answer()
     await callback_query.message.edit_text(
         "ℹ️ <b>About</b>\n\nThis bot is built with Pyrogram v2.\nVersion: 1.0.0",
-        parse_mode="html",
+        parse_mode=enums.ParseMode.HTML,
         reply_markup=InlineKeyboardMarkup(
             [[InlineKeyboardButton("🔙 Back", callback_data="back")]]
         ),
@@ -80,7 +80,7 @@ async def back_callback(client, callback_query: CallbackQuery):
         f"{PREMIUM_EMOJI} Hello, {callback_query.from_user.mention}!\n\n"
         "Welcome to the bot. Choose an option below:",
         reply_markup=START_KEYBOARD,
-        parse_mode="html",
+        parse_mode=enums.ParseMode.HTML,
     )
 
 # ── Entry point ───────────────────────────────────────────────────────────────
