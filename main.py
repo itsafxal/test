@@ -2,7 +2,7 @@ import os
 import logging
 import httpx
 from dotenv import load_dotenv
-from pyrogram import Client, filters, enums
+from pyrogram import Client, filters
 from pyrogram.types import CallbackQuery
 
 load_dotenv()
@@ -25,8 +25,25 @@ app = Client(
     bot_token=BOT_TOKEN,
 )
 
-# ── Premium emoji ─────────────────────────────────────────────────────────────
-PREMIUM_EMOJI = "<emoji id='5796253585100509494'>👋</emoji>"
+# ── Premium emoji via Bot API entity (not HTML tag) ───────────────────────────
+PREMIUM_EMOJI_ID  = 5796253585100509494
+PREMIUM_EMOJI_CHAR = "👋"   # fallback char — must be exactly 1 char (2 UTF-16 bytes)
+
+def make_start_text(first_name: str, user_id: int):
+    """Returns (text, entities) with premium emoji + HTML-style bold/links."""
+    # Structure: "{emoji} Hello, {name}!\n\nWelcome..."
+    emoji_part  = PREMIUM_EMOJI_CHAR + " "
+    hello_part  = f"Hello, {first_name}!\n\nWelcome to the bot. Choose an option below:"
+    text = emoji_part + hello_part
+    entities = [
+        {
+            "type": "custom_emoji",
+            "offset": 0,
+            "length": len(PREMIUM_EMOJI_CHAR.encode("utf-16-le")) // 2,  # UTF-16 code units
+            "custom_emoji_id": str(PREMIUM_EMOJI_ID),
+        }
+    ]
+    return text, entities
 
 # ── Raw Bot API helpers ───────────────────────────────────────────────────────
 def build_raw_keyboard(btn_rows):
@@ -46,13 +63,16 @@ def build_raw_keyboard(btn_rows):
         raw.append(raw_row)
     return raw
 
-async def raw_send_message(chat_id, text, btn_rows, reply_to_message_id=None):
+async def raw_send_message(chat_id, text, btn_rows, entities=None, reply_to_message_id=None):
     payload = {
         "chat_id": chat_id,
         "text": text,
-        "parse_mode": "HTML",
         "reply_markup": {"inline_keyboard": build_raw_keyboard(btn_rows)},
     }
+    if entities:
+        payload["entities"] = entities
+    else:
+        payload["parse_mode"] = "HTML"
     if reply_to_message_id:
         payload["reply_parameters"] = {"message_id": reply_to_message_id}
     async with httpx.AsyncClient() as http:
@@ -67,14 +87,17 @@ async def raw_send_message(chat_id, text, btn_rows, reply_to_message_id=None):
             logger.info(f"raw_send_message OK | chat={chat_id} | msg_id={data['result']['message_id']}")
         return data
 
-async def raw_edit_message(chat_id, message_id, text, btn_rows):
+async def raw_edit_message(chat_id, message_id, text, btn_rows, entities=None):
     payload = {
         "chat_id": chat_id,
         "message_id": message_id,
         "text": text,
-        "parse_mode": "HTML",
         "reply_markup": {"inline_keyboard": build_raw_keyboard(btn_rows)},
     }
+    if entities:
+        payload["entities"] = entities
+    else:
+        payload["parse_mode"] = "HTML"
     async with httpx.AsyncClient() as http:
         resp = await http.post(
             f"https://api.telegram.org/bot{BOT_TOKEN}/editMessageText",
@@ -102,14 +125,12 @@ BACK_BUTTONS = [
 @app.on_message(filters.command("start") & filters.private)
 async def start_handler(client, message):
     logger.info(f"/start from user={message.from_user.id} chat={message.chat.id}")
+    text, entities = make_start_text(message.from_user.first_name, message.from_user.id)
     await raw_send_message(
         chat_id=message.chat.id,
-        text=(
-            f"{PREMIUM_EMOJI} Hello, "
-            f'<a href="tg://user?id={message.from_user.id}">{message.from_user.first_name}</a>!\n\n'
-            "Welcome to the bot. Choose an option below:"
-        ),
+        text=text,
         btn_rows=START_BUTTONS,
+        entities=entities,
     )
 
 # ── Callback query handlers ───────────────────────────────────────────────────
@@ -150,15 +171,16 @@ async def about_callback(client, callback_query: CallbackQuery):
 async def back_callback(client, callback_query: CallbackQuery):
     logger.info(f"callback: back | user={callback_query.from_user.id}")
     await callback_query.answer()
+    text, entities = make_start_text(
+        callback_query.from_user.first_name,
+        callback_query.from_user.id,
+    )
     await raw_edit_message(
         chat_id=callback_query.message.chat.id,
         message_id=callback_query.message.id,
-        text=(
-            f"{PREMIUM_EMOJI} Hello, "
-            f'<a href="tg://user?id={callback_query.from_user.id}">{callback_query.from_user.first_name}</a>!\n\n'
-            "Welcome to the bot. Choose an option below:"
-        ),
+        text=text,
         btn_rows=START_BUTTONS,
+        entities=entities,
     )
 
 # ── Entry point ───────────────────────────────────────────────────────────────
