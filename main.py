@@ -1,12 +1,13 @@
 import os
+import httpx
 from dotenv import load_dotenv
 from pyrogram import Client, filters, enums
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
 
 load_dotenv()
 
-API_ID = int(os.environ.get("API_ID", 0))
-API_HASH = os.environ.get("API_HASH", "")
+API_ID    = int(os.environ.get("API_ID", 0))
+API_HASH  = os.environ.get("API_HASH", "")
 BOT_TOKEN = os.environ.get("BOT_TOKEN", "")
 
 app = Client(
@@ -18,79 +19,121 @@ app = Client(
 
 # ── Premium emoji ─────────────────────────────────────────────────────────────
 PREMIUM_EMOJI = "<emoji id='5796253585100509494'>👋</emoji>"
-PREMIUM_EMOJI2 = "<emoji id='5231200819986047254'>👋</emoji>"
-PREMIUM_EMOJI3 = "<emoji id='5453901475648390219'>👋</emoji>"
 
-# ── StyledButton: injects 'style' into the raw TL object after write() ────────
-class StyledButton(InlineKeyboardButton):
-    def __init__(self, *args, style: str = None, **kwargs):
-        super().__init__(*args, **kwargs)
-        self._style = style  # "success" | "primary" | "danger"
+# ── Raw Bot API helpers (supports 'style' field – Bot API 9.4) ────────────────
+def build_raw_keyboard(btn_rows):
+    """
+    Converts button rows into raw Bot API inline_keyboard dicts.
+    Each button is either:
+      - a dict               → used as-is (supports 'style' field)
+      - InlineKeyboardButton → converted to dict
+    """
+    raw = []
+    for row in btn_rows:
+        raw_row = []
+        for btn in row:
+            if isinstance(btn, dict):
+                raw_row.append(btn)
+            else:
+                d = {"text": btn.text}
+                if btn.callback_data:
+                    d["callback_data"] = btn.callback_data
+                if btn.url:
+                    d["url"] = btn.url
+                raw_row.append(d)
+        raw.append(raw_row)
+    return raw
 
-    async def write(self, client):
-        raw_btn = await super().write(client)
-        if self._style:
-            # Inject style directly onto the TL object Pyrogram produces
-            raw_btn.style = self._style
-        return raw_btn
+async def raw_send_message(chat_id, text, btn_rows, reply_to_message_id=None):
+    payload = {
+        "chat_id": chat_id,
+        "text": text,
+        "parse_mode": "HTML",
+        "reply_markup": {"inline_keyboard": build_raw_keyboard(btn_rows)},
+    }
+    if reply_to_message_id:
+        payload["reply_parameters"] = {"message_id": reply_to_message_id}
+    async with httpx.AsyncClient() as http:
+        await http.post(f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage", json=payload)
 
-# ── Keyboards ─────────────────────────────────────────────────────────────────
-START_KEYBOARD = InlineKeyboardMarkup([
-    [StyledButton("🌐 Website", callback_data="website", style="success")],
-    [StyledButton("📞 Support", callback_data="support", style="primary")],
-    [StyledButton("ℹ️  About",  callback_data="about",   style="danger")],
-])
+async def raw_edit_message(chat_id, message_id, text, btn_rows):
+    payload = {
+        "chat_id": chat_id,
+        "message_id": message_id,
+        "text": text,
+        "parse_mode": "HTML",
+        "reply_markup": {"inline_keyboard": build_raw_keyboard(btn_rows)},
+    }
+    async with httpx.AsyncClient() as http:
+        await http.post(f"https://api.telegram.org/bot{BOT_TOKEN}/editMessageText", json=payload)
 
-BACK_KEYBOARD = InlineKeyboardMarkup([
-    [InlineKeyboardButton("🔙 Back", callback_data="back")],
-])
+# ── Button layouts ────────────────────────────────────────────────────────────
+START_BUTTONS = [
+    [{"text": "🌐 Website", "callback_data": "website", "style": "success"}],
+    [{"text": "📞 Support", "callback_data": "support", "style": "primary"}],
+    [{"text": "ℹ️  About",  "callback_data": "about",   "style": "danger"}],
+]
+
+BACK_BUTTONS = [
+    [{"text": "🔙 Back", "callback_data": "back"}],
+]
 
 # ── /start handler ────────────────────────────────────────────────────────────
 @app.on_message(filters.command("start") & filters.private)
 async def start_handler(client, message):
-    await message.reply_text(
-        f"{PREMIUM_EMOJI} Hello, {message.from_user.mention}!\n\n"
-        "Welcome to the bot. Choose an option below:",
-        reply_markup=START_KEYBOARD,
-        parse_mode=enums.ParseMode.HTML,
+    await raw_send_message(
+        chat_id=message.chat.id,
+        text=(
+            f"{PREMIUM_EMOJI} Hello, "
+            f'<a href="tg://user?id={message.from_user.id}">{message.from_user.first_name}</a>!\n\n'
+            "Welcome to the bot. Choose an option below:"
+        ),
+        btn_rows=START_BUTTONS,
     )
 
 # ── Callback query handlers ───────────────────────────────────────────────────
 @app.on_callback_query(filters.regex("^website$"))
 async def website_callback(client, callback_query: CallbackQuery):
     await callback_query.answer("Opening website…", show_alert=False)
-    await callback_query.message.edit_text(
-        "{PREMIUM_EMOJI2} <b>Website</b>\n\nVisit us at: https://example.com",
-        parse_mode=enums.ParseMode.HTML,
-        reply_markup=BACK_KEYBOARD,
+    await raw_edit_message(
+        chat_id=callback_query.message.chat.id,
+        message_id=callback_query.message.id,
+        text="🌐 <b>Website</b>\n\nVisit us at: https://example.com",
+        btn_rows=BACK_BUTTONS,
     )
 
 @app.on_callback_query(filters.regex("^support$"))
 async def support_callback(client, callback_query: CallbackQuery):
     await callback_query.answer("Connecting to support…", show_alert=False)
-    await callback_query.message.edit_text(
-        "{PREMIUM_EMOJI3} <b>Support</b>\n\nContact us at: @support_username",
-        parse_mode=enums.ParseMode.HTML,
-        reply_markup=BACK_KEYBOARD,
+    await raw_edit_message(
+        chat_id=callback_query.message.chat.id,
+        message_id=callback_query.message.id,
+        text="📞 <b>Support</b>\n\nContact us at: @support_username",
+        btn_rows=BACK_BUTTONS,
     )
 
 @app.on_callback_query(filters.regex("^about$"))
 async def about_callback(client, callback_query: CallbackQuery):
     await callback_query.answer()
-    await callback_query.message.edit_text(
-        "ℹ️ <b>About</b>\n\nThis bot is built with Pyrofork.\nVersion: 1.0.0",
-        parse_mode=enums.ParseMode.HTML,
-        reply_markup=BACK_KEYBOARD,
+    await raw_edit_message(
+        chat_id=callback_query.message.chat.id,
+        message_id=callback_query.message.id,
+        text="ℹ️ <b>About</b>\n\nThis bot is built with Pyrogram.\nVersion: 1.0.0",
+        btn_rows=BACK_BUTTONS,
     )
 
 @app.on_callback_query(filters.regex("^back$"))
 async def back_callback(client, callback_query: CallbackQuery):
     await callback_query.answer()
-    await callback_query.message.edit_text(
-        f"{PREMIUM_EMOJI} Hello, {callback_query.from_user.mention}!\n\n"
-        "Welcome to the bot. Choose an option below:",
-        reply_markup=START_KEYBOARD,
-        parse_mode=enums.ParseMode.HTML,
+    await raw_edit_message(
+        chat_id=callback_query.message.chat.id,
+        message_id=callback_query.message.id,
+        text=(
+            f"{PREMIUM_EMOJI} Hello, "
+            f'<a href="tg://user?id={callback_query.from_user.id}">{callback_query.from_user.first_name}</a>!\n\n'
+            "Welcome to the bot. Choose an option below:"
+        ),
+        btn_rows=START_BUTTONS,
     )
 
 # ── Entry point ───────────────────────────────────────────────────────────────
