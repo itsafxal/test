@@ -112,9 +112,9 @@ async def raw_edit_message(chat_id, message_id, text, btn_rows, entities=None):
 
 # ── Button layouts ────────────────────────────────────────────────────────────
 START_BUTTONS = [
-    [{"text": "🌐 Website", "callback_data": "website", "style": "success"}],
-    [{"text": "📞 Support", "callback_data": "support", "style": "primary"}],
-    [{"text": "ℹ️  About",  "callback_data": "about",   "style": "danger"}],
+    [{"text": "🌐 Website", "callback_data": "website", "style": "success", "icon_custom_emoji_id": "5775903750879187931"}],
+    [{"text": "📞 Support", "callback_data": "support", "style": "primary", "icon_custom_emoji_id": "5247176827016847212"}],
+    [{"text": "ℹ️  About", "callback_data": "about", "style": "danger", "icon_custom_emoji_id": "6312218400189846365"}],
 ]
 
 BACK_BUTTONS = [
