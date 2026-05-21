@@ -1,11 +1,10 @@
 import os
 from dotenv import load_dotenv
-from pyrogram import Client, filters, enums
-from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
+from pyrogram import Client, filters, enums, raw
+from pyrogram.types import CallbackQuery
 
 load_dotenv()
 
-# Load credentials from environment variables
 API_ID = int(os.environ.get("API_ID", 0))
 API_HASH = os.environ.get("API_HASH", "")
 BOT_TOKEN = os.environ.get("BOT_TOKEN", "")
@@ -20,23 +19,63 @@ app = Client(
 # ── Premium emoji ─────────────────────────────────────────────────────────────
 PREMIUM_EMOJI = "<emoji id='5796253585100509494'>👋</emoji>"
 
-# ── Inline keyboard with 3 buttons ───────────────────────────────────────────
-START_KEYBOARD = InlineKeyboardMarkup(
-    [
-        [InlineKeyboardButton("🌐 Website", callback_data="website", style="success")],
-        [InlineKeyboardButton("📞 Support", callback_data="support", style="primary")],
-        [InlineKeyboardButton("ℹ️  About", callback_data="about", style="danger")],
-    ]
-)
+# ── Raw inline keyboard with button styles ────────────────────────────────────
+def get_start_markup():
+    return raw.types.ReplyInlineMarkup(
+        rows=[
+            raw.types.KeyboardButtonRow(buttons=[
+                raw.types.KeyboardButtonCallback(
+                    text="🌐 Website",
+                    data=b"website",
+                    style=raw.types.KeyboardButtonStyleSuccess(),
+                )
+            ]),
+            raw.types.KeyboardButtonRow(buttons=[
+                raw.types.KeyboardButtonCallback(
+                    text="📞 Support",
+                    data=b"support",
+                    style=raw.types.KeyboardButtonStylePrimary(),
+                )
+            ]),
+            raw.types.KeyboardButtonRow(buttons=[
+                raw.types.KeyboardButtonCallback(
+                    text="ℹ️ About",
+                    data=b"about",
+                    style=raw.types.KeyboardButtonStyleDanger(),
+                )
+            ]),
+        ]
+    )
+
+def get_back_markup():
+    return raw.types.ReplyInlineMarkup(
+        rows=[
+            raw.types.KeyboardButtonRow(buttons=[
+                raw.types.KeyboardButtonCallback(
+                    text="🔙 Back",
+                    data=b"back",
+                )
+            ]),
+        ]
+    )
 
 # ── /start handler ────────────────────────────────────────────────────────────
 @app.on_message(filters.command("start") & filters.private)
 async def start_handler(client, message):
-    await message.reply_text(
+    peer = await client.resolve_peer(message.chat.id)
+    text, entities = (await client.parser.parse(
         f"{PREMIUM_EMOJI} Hello, {message.from_user.mention}!\n\n"
         "Welcome to the bot. Choose an option below:",
-        reply_markup=START_KEYBOARD,
-        parse_mode=enums.ParseMode.HTML,
+        enums.ParseMode.HTML
+    )).values()
+    await client.invoke(
+        raw.functions.messages.SendMessage(
+            peer=peer,
+            message=text,
+            entities=entities,
+            random_id=client.rnd_id(),
+            reply_markup=get_start_markup(),
+        )
     )
 
 # ── Callback query handlers ───────────────────────────────────────────────────
@@ -46,9 +85,11 @@ async def website_callback(client, callback_query: CallbackQuery):
     await callback_query.message.edit_text(
         "🌐 <b>Website</b>\n\nVisit us at: https://example.com",
         parse_mode=enums.ParseMode.HTML,
-        reply_markup=InlineKeyboardMarkup(
-            [[InlineKeyboardButton("🔙 Back", callback_data="back")]]
-        ),
+        reply_markup=raw.types.ReplyInlineMarkup(rows=[
+            raw.types.KeyboardButtonRow(buttons=[
+                raw.types.KeyboardButtonCallback(text="🔙 Back", data=b"back")
+            ])
+        ]),
     )
 
 @app.on_callback_query(filters.regex("^support$"))
@@ -57,9 +98,11 @@ async def support_callback(client, callback_query: CallbackQuery):
     await callback_query.message.edit_text(
         "📞 <b>Support</b>\n\nContact us at: @support_username",
         parse_mode=enums.ParseMode.HTML,
-        reply_markup=InlineKeyboardMarkup(
-            [[InlineKeyboardButton("🔙 Back", callback_data="back")]]
-        ),
+        reply_markup=raw.types.ReplyInlineMarkup(rows=[
+            raw.types.KeyboardButtonRow(buttons=[
+                raw.types.KeyboardButtonCallback(text="🔙 Back", data=b"back")
+            ])
+        ]),
     )
 
 @app.on_callback_query(filters.regex("^about$"))
@@ -68,19 +111,30 @@ async def about_callback(client, callback_query: CallbackQuery):
     await callback_query.message.edit_text(
         "ℹ️ <b>About</b>\n\nThis bot is built with Pyrogram v2.\nVersion: 1.0.0",
         parse_mode=enums.ParseMode.HTML,
-        reply_markup=InlineKeyboardMarkup(
-            [[InlineKeyboardButton("🔙 Back", callback_data="back")]]
-        ),
+        reply_markup=raw.types.ReplyInlineMarkup(rows=[
+            raw.types.KeyboardButtonRow(buttons=[
+                raw.types.KeyboardButtonCallback(text="🔙 Back", data=b"back")
+            ])
+        ]),
     )
 
 @app.on_callback_query(filters.regex("^back$"))
 async def back_callback(client, callback_query: CallbackQuery):
     await callback_query.answer()
-    await callback_query.message.edit_text(
+    peer = await client.resolve_peer(callback_query.message.chat.id)
+    text, entities = (await client.parser.parse(
         f"{PREMIUM_EMOJI} Hello, {callback_query.from_user.mention}!\n\n"
         "Welcome to the bot. Choose an option below:",
-        reply_markup=START_KEYBOARD,
-        parse_mode=enums.ParseMode.HTML,
+        enums.ParseMode.HTML
+    )).values()
+    await client.invoke(
+        raw.functions.messages.EditMessage(
+            peer=peer,
+            id=callback_query.message.id,
+            message=text,
+            entities=entities,
+            reply_markup=get_start_markup(),
+        )
     )
 
 # ── Entry point ───────────────────────────────────────────────────────────────
