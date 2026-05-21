@@ -17,17 +17,6 @@ app = Client(
     bot_token=BOT_TOKEN,
 )
 
-import httpx
-
-# Async (recommended inside Pyrogram handlers)
-async with httpx.AsyncClient() as client:
-    response = await client.get("https://api.example.com/data")
-    print(response.json())
-
-# Sync (outside of async context)
-response = httpx.get("https://api.example.com/data")
-print(response.json()
-      
 # ── Premium emoji ─────────────────────────────────────────────────────────────
 PREMIUM_EMOJI = "<emoji id='5796253585100509494'>👋</emoji>"
 
