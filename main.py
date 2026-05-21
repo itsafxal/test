@@ -18,45 +18,32 @@ app = Client(
 
 # ── Premium emoji ─────────────────────────────────────────────────────────────
 PREMIUM_EMOJI = "<emoji id='5796253585100509494'>👋</emoji>"
+PREMIUM_EMOJI2 = "<emoji id='5231200819986047254'>👋</emoji>"
+PREMIUM_EMOJI3 = "<emoji id='5453901475648390219'>👋</emoji>"
 
-# ── Raw keyboard builder (supports 'style' field via plain dicts) ─────────────
-def build_raw_keyboard(btn_rows):
-    """
-    Converts a list of button rows into raw Bot API inline_keyboard dicts.
-    Each button is either:
-      - an InlineKeyboardButton  -> converted to dict
-      - already a dict           -> used as-is (supports 'style' field)
-    """
-    raw = []
-    for row in btn_rows:
-        raw_row = []
-        for btn in row:
-            if isinstance(btn, dict):
-                raw_row.append(btn)
-            else:
-                d = {"text": btn.text}
-                if btn.callback_data:
-                    d["callback_data"] = btn.callback_data
-                if btn.url:
-                    d["url"] = btn.url
-                raw_row.append(d)
-        raw.append(raw_row)
-    return raw
+# ── StyledButton: injects 'style' into the raw TL object after write() ────────
+class StyledButton(InlineKeyboardButton):
+    def __init__(self, *args, style: str = None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._style = style  # "success" | "primary" | "danger"
+
+    async def write(self, client):
+        raw_btn = await super().write(client)
+        if self._style:
+            # Inject style directly onto the TL object Pyrogram produces
+            raw_btn.style = self._style
+        return raw_btn
 
 # ── Keyboards ─────────────────────────────────────────────────────────────────
-START_KEYBOARD = InlineKeyboardMarkup(
-    build_raw_keyboard([
-        [{"text": "🌐 Website", "callback_data": "website", "style": "success"}],
-        [{"text": "📞 Support", "callback_data": "support", "style": "primary"}],
-        [{"text": "ℹ️  About",  "callback_data": "about",   "style": "danger"}],
-    ])
-)
+START_KEYBOARD = InlineKeyboardMarkup([
+    [StyledButton("🌐 Website", callback_data="website", style="success")],
+    [StyledButton("📞 Support", callback_data="support", style="primary")],
+    [StyledButton("ℹ️  About",  callback_data="about",   style="danger")],
+])
 
-BACK_KEYBOARD = InlineKeyboardMarkup(
-    build_raw_keyboard([
-        [{"text": "🔙 Back", "callback_data": "back"}],
-    ])
-)
+BACK_KEYBOARD = InlineKeyboardMarkup([
+    [InlineKeyboardButton("🔙 Back", callback_data="back")],
+])
 
 # ── /start handler ────────────────────────────────────────────────────────────
 @app.on_message(filters.command("start") & filters.private)
@@ -73,7 +60,7 @@ async def start_handler(client, message):
 async def website_callback(client, callback_query: CallbackQuery):
     await callback_query.answer("Opening website…", show_alert=False)
     await callback_query.message.edit_text(
-        "🌐 <b>Website</b>\n\nVisit us at: https://example.com",
+        "{PREMIUM_EMOJI2} <b>Website</b>\n\nVisit us at: https://example.com",
         parse_mode=enums.ParseMode.HTML,
         reply_markup=BACK_KEYBOARD,
     )
@@ -82,7 +69,7 @@ async def website_callback(client, callback_query: CallbackQuery):
 async def support_callback(client, callback_query: CallbackQuery):
     await callback_query.answer("Connecting to support…", show_alert=False)
     await callback_query.message.edit_text(
-        "📞 <b>Support</b>\n\nContact us at: @support_username",
+        "{PREMIUM_EMOJI3} <b>Support</b>\n\nContact us at: @support_username",
         parse_mode=enums.ParseMode.HTML,
         reply_markup=BACK_KEYBOARD,
     )
